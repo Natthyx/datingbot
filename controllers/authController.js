@@ -10,10 +10,16 @@ export const startCommand = (bot) => {
     const existingUser = await User.findOne({ telegramId: chatId });
 
     if (existingUser) {
-      bot.sendMessage(chatId, `Welcome back, ${existingUser.name}! You are already registered.`);
+      bot.sendMessage(chatId, `Welcome back, ${existingUser.name}! You are already registered.`, {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: 'Menu', callback_data: 'show_menu' }],
+          ],
+        },
+      });
     } else {
-      userProfiles[chatId] = { step: 'name' };
       bot.sendMessage(chatId, 'Welcome to the Dating Bot! What\'s your name?');
+      userProfiles[chatId] = { step: 'name' };
     }
   });
 };
@@ -101,7 +107,9 @@ export const handleCallbackQuery = (bot) => {
     const chatId = callbackQuery.message.chat.id;
     const data = callbackQuery.data;
 
-    if (userProfiles[chatId] && userProfiles[chatId].step === 'gender') {
+    if (data === 'show_menu') {
+      displayMenu(bot, chatId);
+    } else if (userProfiles[chatId] && userProfiles[chatId].step === 'gender') {
       userProfiles[chatId].gender = data;
       userProfiles[chatId].step = 'bio';
       bot.sendMessage(chatId, 'Tell us a little about yourself (a short bio).');
@@ -111,6 +119,7 @@ export const handleCallbackQuery = (bot) => {
       bot.sendMessage(chatId, 'Please upload up to 3 images (send them one by one).');
     } else if (userProfiles[chatId] && userProfiles[chatId].step === 'preferences') {
       userProfiles[chatId].preferences = data.replace('Pref', '');
+      
 
       // Save user data to MongoDB
       try {
@@ -127,11 +136,54 @@ export const handleCallbackQuery = (bot) => {
         });
 
         await newUser.save();
-        bot.sendMessage(chatId, `Registration complete! Here is your profile:\n\nName: ${newUser.name}\nAge: ${newUser.age}\nGender: ${newUser.gender}\nBio: ${newUser.bio}\nClass Year: ${newUser.classYear}\nPreferences: ${newUser.preferences}`);
+        // First, send the uploaded images
+        if (newUser.images.length > 0) {
+          for (let imageId of newUser.images) {
+            await bot.sendPhoto(chatId, imageId); // Send each image uploaded
+          }
+        } else {
+          bot.sendMessage(chatId, 'No images uploaded.');
+        }
+
+        // After the images, send the profile summary
+        let profileMessage = `Your profile:\n\n` +
+          `Name: ${newUser.name}\n` +
+          `Age: ${newUser.age}\n` +
+          `Gender: ${newUser.gender}\n` +
+          `Bio: ${newUser.bio}\n` +
+          `Class Year: ${newUser.classYear}\n` +
+          `Preferences: Looking for a ${newUser.preferences}\n`;
+
+        bot.sendMessage(chatId, profileMessage);
+        userProfiles[chatId].step = 'finish';
+        // After saving, show menu again
+        displayMenu(bot, chatId);
+
       } catch (error) {
         console.error('Error saving user:', error);
         bot.sendMessage(chatId, 'Error saving your profile. Please try again.');
       }
     }
   });
+};
+
+const displayMenu = (bot, chatId) => {
+  bot.sendMessage(chatId, 'Please choose an option:', {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: 'Look for matches', callback_data: 'look_for_matches' }],
+        [{ text: 'Check matches', callback_data: 'check_matches' }],
+      ],
+    },
+  });
+};
+
+export const lookForMatches = async (bot, chatId) => {
+  // Logic to fetch potential matches based on user preferences
+  bot.sendMessage(chatId, 'Looking for matches based on your preferences...');
+};
+
+export const checkMatches = async (bot, chatId) => {
+  // Logic to fetch and show the user's current matches
+  bot.sendMessage(chatId, 'Fetching your matches...');
 };
