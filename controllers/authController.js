@@ -2,6 +2,7 @@ import User from '../models/User.js';
 
 let userProfiles = {};
 
+// Start command
 export const startCommand = (bot) => {
   bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
@@ -24,84 +25,65 @@ export const startCommand = (bot) => {
   });
 };
 
+// Handle text messages
 export const handleMessages = (bot) => {
   bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
 
     if (userProfiles[chatId] && userProfiles[chatId].step === 'name') {
+      if (msg.text.startsWith('/')) {
+        bot.sendMessage(chatId, 'Invalid name, please enter your real name.');
+        return;
+      }
       userProfiles[chatId].name = msg.text;
-      userProfiles[chatId].step = 'age';
-      bot.sendMessage(chatId, `Nice to meet you, ${msg.text}! How old are you?`);
-    } else if (userProfiles[chatId] && userProfiles[chatId].step === 'age') {
-      userProfiles[chatId].age = msg.text;
       userProfiles[chatId].step = 'gender';
-      bot.sendMessage(chatId, 'Please select your gender:', {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: 'Male', callback_data: 'Male' }],
-            [{ text: 'Female', callback_data: 'Female' }],
-            [{ text: 'Other', callback_data: 'Other' }],
-          ],
-        },
-      });
-    } else if (userProfiles[chatId] && userProfiles[chatId].step === 'bio') {
+      updateUserMessage(chatId, 'Please select your gender:', bot, [
+        [{ text: 'Male', callback_data: 'Male' }],
+        [{ text: 'Female', callback_data: 'Female' }],
+      ]);
+    } 
+    else if (userProfiles[chatId] && userProfiles[chatId].step === 'bio') {
       userProfiles[chatId].bio = msg.text;
-      userProfiles[chatId].step = 'classYear';
-      bot.sendMessage(chatId, 'What is your class year?', {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: 'Freshman', callback_data: 'Freshman' }],
-            [{ text: '2nd Year', callback_data: '2nd Year' }],
-            [{ text: '3rd Year', callback_data: '3rd Year' }],
-            [{ text: '4th Year', callback_data: '4th Year' }],
-            [{ text: 'Senior', callback_data: 'Senior' }],
-          ],
-        },
-      });
-    } else if (userProfiles[chatId] && userProfiles[chatId].step === 'images') {
+      userProfiles[chatId].step = 'images';
+      // Sending a new message for the image upload prompt
+      bot.sendMessage(chatId, 'Please upload up to 3 images (you can send them together or one by one).');
+    } 
+    else if (userProfiles[chatId] && userProfiles[chatId].step === 'images') {
       if (msg.photo) {
-        const imageId = msg.photo[msg.photo.length - 1].file_id;
         if (!userProfiles[chatId].images) {
           userProfiles[chatId].images = [];
         }
-
-        userProfiles[chatId].images.push(imageId);
-
+    
+        // Ensure we only take the last (highest resolution) photo from each message
+        const imageId = msg.photo[msg.photo.length - 1].file_id;
+    
+        if (!userProfiles[chatId].images.includes(imageId)) {
+          if (userProfiles[chatId].images.length < 3) {
+            userProfiles[chatId].images.push(imageId);
+          }
+        }
+    
+        // After all photos are processed, check if we need to send the "Done" message
         if (userProfiles[chatId].images.length < 3) {
-          bot.sendMessage(chatId, 'Image uploaded! Please send another image or type "done" if finished.');
-        } else {
-          userProfiles[chatId].step = 'preferences';
-          bot.sendMessage(chatId, 'You\'ve uploaded 3 images. What class year are you looking for?', {
+          bot.sendMessage(chatId, 'Image uploaded! Please send another image or click "Done".', {
             reply_markup: {
               inline_keyboard: [
-                [{ text: 'Freshman', callback_data: 'FreshmanPref' }],
-                [{ text: '2nd Year', callback_data: '2nd YearPref' }],
-                [{ text: '3rd Year', callback_data: '3rd YearPref' }],
-                [{ text: '4th Year', callback_data: '4th YearPref' }],
-                [{ text: 'Senior', callback_data: 'SeniorPref' }],
+                [{ text: 'Done', callback_data: 'done_images' }],
               ],
             },
           });
+        } else {
+          userProfiles[chatId].step = 'finish';
+          saveUserProfile(chatId, bot);
         }
-      } else if (msg.text.toLowerCase() === 'done') {
-        userProfiles[chatId].step = 'preferences';
-        bot.sendMessage(chatId, 'What class year are you looking for?', {
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: 'Freshman', callback_data: 'FreshmanPref' }],
-              [{ text: '2nd Year', callback_data: '2nd YearPref' }],
-              [{ text: '3rd Year', callback_data: '3rd YearPref' }],
-              [{ text: '4th Year', callback_data: '4th YearPref' }],
-              [{ text: 'Senior', callback_data: 'SeniorPref' }],
-            ],
-          },
-        });
       }
     }
+    
+    
   });
 };
 
-// Handle callback queries for gender, class year, preferences
+// Handle callback queries
 export const handleCallbackQuery = (bot) => {
   bot.on('callback_query', async (callbackQuery) => {
     const chatId = callbackQuery.message.chat.id;
@@ -111,62 +93,96 @@ export const handleCallbackQuery = (bot) => {
       displayMenu(bot, chatId);
     } else if (userProfiles[chatId] && userProfiles[chatId].step === 'gender') {
       userProfiles[chatId].gender = data;
+      userProfiles[chatId].step = 'batchYear';
+      updateUserMessage(chatId, 'What is your batch year?', bot, [
+        [{ text: '2012', callback_data: '2012' }],
+        [{ text: '2013', callback_data: '2013' }],
+        [{ text: '2014', callback_data: '2014' }],
+        [{ text: '2015', callback_data: '2015' }],
+        [{ text: '2016', callback_data: '2016' }],
+        [{ text: '2017', callback_data: '2017' }],
+      ]);
+    } else if (userProfiles[chatId] && userProfiles[chatId].step === 'batchYear') {
+      userProfiles[chatId].batchYear = data;
       userProfiles[chatId].step = 'bio';
-      bot.sendMessage(chatId, 'Tell us a little about yourself (a short bio).');
-    } else if (userProfiles[chatId] && userProfiles[chatId].step === 'classYear') {
-      userProfiles[chatId].classYear = data;
-      userProfiles[chatId].step = 'images';
-      bot.sendMessage(chatId, 'Please upload up to 3 images (send them one by one).');
-    } else if (userProfiles[chatId] && userProfiles[chatId].step === 'preferences') {
-      userProfiles[chatId].preferences = data.replace('Pref', '');
-      
-
-      // Save user data to MongoDB
-      try {
-        const newUser = new User({
-          telegramId: chatId,
-          name: userProfiles[chatId].name,
-          age: parseInt(userProfiles[chatId].age),
-          gender: userProfiles[chatId].gender,
-          bio: userProfiles[chatId].bio,
-          classYear: userProfiles[chatId].classYear,
-          images: userProfiles[chatId].images || [],
-          preferences: userProfiles[chatId].preferences,
-          contact: callbackQuery.from.username || callbackQuery.from.id, // Use either username or ID for contact
-        });
-
-        await newUser.save();
-        // First, send the uploaded images
-        if (newUser.images.length > 0) {
-          for (let imageId of newUser.images) {
-            await bot.sendPhoto(chatId, imageId); // Send each image uploaded
-          }
-        } else {
-          bot.sendMessage(chatId, 'No images uploaded.');
-        }
-
-        // After the images, send the profile summary
-        let profileMessage = `Your profile:\n\n` +
-          `Name: ${newUser.name}\n` +
-          `Age: ${newUser.age}\n` +
-          `Gender: ${newUser.gender}\n` +
-          `Bio: ${newUser.bio}\n` +
-          `Class Year: ${newUser.classYear}\n` +
-          `Preferences: Looking for a ${newUser.preferences}\n`;
-
-        bot.sendMessage(chatId, profileMessage);
-        userProfiles[chatId].step = 'finish';
-        // After saving, show menu again
-        displayMenu(bot, chatId);
-
-      } catch (error) {
-        console.error('Error saving user:', error);
-        bot.sendMessage(chatId, 'Error saving your profile. Please try again.');
-      }
+      updateUserMessage(chatId, 'Tell us a little about yourself (a short bio).', bot);
+    } else if (data === 'done_images') {
+      userProfiles[chatId].step = 'finish';
+      bot.sendMessage(chatId, 'You\'ve finished uploading images.');
+      saveUserProfile(chatId, bot, callbackQuery);
     }
   });
 };
 
+// Save user profile and handle image uploads
+const saveUserProfile = async (chatId, bot,callbackQuery=null) => {
+  try {
+    const contact = callbackQuery 
+      ? callbackQuery.from.username || callbackQuery.from.id 
+      : chatId;  // Fallback to chatId if callbackQuery is undefined
+
+    const newUser = new User({
+      telegramId: chatId,
+      name: userProfiles[chatId].name,
+      gender: userProfiles[chatId].gender,
+      bio: userProfiles[chatId].bio,
+      batchYear: userProfiles[chatId].batchYear,
+      images: userProfiles[chatId].images || [],
+      contact,
+    });
+
+    await newUser.save();
+
+    // Send profile summary with all images together and one caption
+    let profileMessage = `Your profile:\n\n` +
+      `Name: ${newUser.name}\n` +
+      `Gender: ${newUser.gender}\n` +
+      `Bio: ${newUser.bio}\n` +
+      `Batch of Year: ${newUser.batchYear}\n`;
+
+    // Send the images in one media group with a single caption
+    if (newUser.images.length > 0) {
+      await bot.sendMediaGroup(chatId, newUser.images.map((imageId) => ({
+        type: 'photo',
+        media: imageId,
+        caption:profileMessage,
+      })));
+    }
+
+    displayMenu(bot, chatId);
+  } catch (error) {
+    console.error('Error saving user:', error);
+    bot.sendMessage(chatId, 'Error saving your profile. Please try again.');
+  }
+};
+
+// Update user messages (edit or send a new message)
+const updateUserMessage = async (chatId, text, bot, inlineKeyboard = null) => {
+  const options = inlineKeyboard
+    ? { reply_markup: { inline_keyboard: inlineKeyboard } }
+    : {};
+
+  if (userProfiles[chatId] && userProfiles[chatId].messageId) {
+    try {
+      await bot.editMessageText(text, {
+        chat_id: chatId,
+        message_id: userProfiles[chatId].messageId,
+        ...options,
+      });
+    } catch (error) {
+      console.error("Error editing message:", error.message);
+      bot.sendMessage(chatId, text, options).then((sentMessage) => {
+        userProfiles[chatId].messageId = sentMessage.message_id;
+      });
+    }
+  } else {
+    bot.sendMessage(chatId, text, options).then((sentMessage) => {
+      userProfiles[chatId].messageId = sentMessage.message_id;
+    });
+  }
+};
+
+// Display menu
 const displayMenu = (bot, chatId) => {
   bot.sendMessage(chatId, 'Please choose an option:', {
     reply_markup: {
@@ -178,12 +194,44 @@ const displayMenu = (bot, chatId) => {
   });
 };
 
+// Match functionality
 export const lookForMatches = async (bot, chatId) => {
-  // Logic to fetch potential matches based on user preferences
-  bot.sendMessage(chatId, 'Looking for matches based on your preferences...');
+  const user = await User.findOne({ telegramId: chatId });
+
+  if (!user) {
+    bot.sendMessage(chatId, 'Please complete your registration first.');
+  } else {
+    const targetGender = user.gender === 'Male' ? 'Female' : 'Male';
+
+    bot.sendMessage(chatId, `Looking for matches of gender: ${targetGender}...`);
+
+    const matches = await User.find({
+      gender: targetGender,
+      _id: { $ne: user._id }
+    });
+
+    if (matches.length > 0) {
+      for (const match of matches) {
+        const matchMessage = `Match found!\n\n` +
+          `Name: ${match.name}\n` +
+          `Bio: ${match.bio}\n` +
+          `Gender: ${match.gender}\n` +
+          `Batch of Year: ${match.batchYear}\n`;
+
+        await bot.sendMediaGroup(chatId, match.images.map((imageId) => ({
+          type: 'photo',
+          media: imageId,
+          caption:matchMessage,
+        })));
+
+        
+      }
+    } else {
+      bot.sendMessage(chatId, 'No matches found at the moment. Please check back later.');
+    }
+  }
 };
 
 export const checkMatches = async (bot, chatId) => {
-  // Logic to fetch and show the user's current matches
   bot.sendMessage(chatId, 'Fetching your matches...');
 };
