@@ -1,6 +1,6 @@
 import User from '../models/User.js';
-
-let userProfiles = {};
+import { displayMenu } from './botFunctions.js';
+export let userProfiles = {};
 
 // Start command
 export const startCommand = (bot) => {
@@ -25,7 +25,7 @@ export const startCommand = (bot) => {
   });
 };
 
-// Handle text messages
+// Handle text messages for registration
 export const handleMessages = (bot) => {
   bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
@@ -45,7 +45,6 @@ export const handleMessages = (bot) => {
     else if (userProfiles[chatId] && userProfiles[chatId].step === 'bio') {
       userProfiles[chatId].bio = msg.text;
       userProfiles[chatId].step = 'images';
-      // Sending a new message for the image upload prompt
       bot.sendMessage(chatId, 'Please upload up to 3 images (you can send them together or one by one).');
     } 
     else if (userProfiles[chatId] && userProfiles[chatId].step === 'images') {
@@ -53,17 +52,15 @@ export const handleMessages = (bot) => {
         if (!userProfiles[chatId].images) {
           userProfiles[chatId].images = [];
         }
-    
-        // Ensure we only take the last (highest resolution) photo from each message
+
         const imageId = msg.photo[msg.photo.length - 1].file_id;
-    
+        
         if (!userProfiles[chatId].images.includes(imageId)) {
           if (userProfiles[chatId].images.length < 3) {
             userProfiles[chatId].images.push(imageId);
           }
         }
-    
-        // After all photos are processed, check if we need to send the "Done" message
+
         if (userProfiles[chatId].images.length < 3) {
           bot.sendMessage(chatId, 'Image uploaded! Please send another image or click "Done".', {
             reply_markup: {
@@ -78,44 +75,11 @@ export const handleMessages = (bot) => {
         }
       }
     }
-    
-    
-  });
-};
-
-// Handle callback queries
-export const handleCallbackQuery = (bot) => {
-  bot.on('callback_query', async (callbackQuery) => {
-    const chatId = callbackQuery.message.chat.id;
-    const data = callbackQuery.data;
-
-    if (data === 'show_menu') {
-      displayMenu(bot, chatId);
-    } else if (userProfiles[chatId] && userProfiles[chatId].step === 'gender') {
-      userProfiles[chatId].gender = data;
-      userProfiles[chatId].step = 'batchYear';
-      updateUserMessage(chatId, 'What is your batch year?', bot, [
-        [{ text: '2012', callback_data: '2012' }],
-        [{ text: '2013', callback_data: '2013' }],
-        [{ text: '2014', callback_data: '2014' }],
-        [{ text: '2015', callback_data: '2015' }],
-        [{ text: '2016', callback_data: '2016' }],
-        [{ text: '2017', callback_data: '2017' }],
-      ]);
-    } else if (userProfiles[chatId] && userProfiles[chatId].step === 'batchYear') {
-      userProfiles[chatId].batchYear = data;
-      userProfiles[chatId].step = 'bio';
-      updateUserMessage(chatId, 'Tell us a little about yourself (a short bio).', bot);
-    } else if (data === 'done_images') {
-      userProfiles[chatId].step = 'finish';
-      bot.sendMessage(chatId, 'You\'ve finished uploading images.');
-      saveUserProfile(chatId, bot, callbackQuery);
-    }
   });
 };
 
 // Save user profile and handle image uploads
-const saveUserProfile = async (chatId, bot,callbackQuery=null) => {
+export const saveUserProfile = async (chatId, bot, callbackQuery = null) => {
   try {
     const contact = callbackQuery 
       ? callbackQuery.from.username || callbackQuery.from.id 
@@ -133,20 +97,22 @@ const saveUserProfile = async (chatId, bot,callbackQuery=null) => {
 
     await newUser.save();
 
-    // Send profile summary with all images together and one caption
-    let profileMessage = `Your profile:\n\n` +
+    // Send profile summary
+    let profileMessage = `Your profile is successfully registered:\n\n` +
       `Name: ${newUser.name}\n` +
       `Gender: ${newUser.gender}\n` +
       `Bio: ${newUser.bio}\n` +
       `Batch of Year: ${newUser.batchYear}\n`;
 
-    // Send the images in one media group with a single caption
+    // Send images with captioned profile data
     if (newUser.images.length > 0) {
-      await bot.sendMediaGroup(chatId, newUser.images.map((imageId) => ({
+      await bot.sendMediaGroup(chatId, newUser.images.map((imageId, index) => ({
         type: 'photo',
         media: imageId,
-        caption:profileMessage,
+        caption: index === 0 ? profileMessage : '', // Send profile details with the first image only
       })));
+    } else {
+      bot.sendMessage(chatId, profileMessage);
     }
 
     displayMenu(bot, chatId);
@@ -157,7 +123,7 @@ const saveUserProfile = async (chatId, bot,callbackQuery=null) => {
 };
 
 // Update user messages (edit or send a new message)
-const updateUserMessage = async (chatId, text, bot, inlineKeyboard = null) => {
+export const updateUserMessage = async (chatId, text, bot, inlineKeyboard = null) => {
   const options = inlineKeyboard
     ? { reply_markup: { inline_keyboard: inlineKeyboard } }
     : {};
@@ -180,58 +146,4 @@ const updateUserMessage = async (chatId, text, bot, inlineKeyboard = null) => {
       userProfiles[chatId].messageId = sentMessage.message_id;
     });
   }
-};
-
-// Display menu
-const displayMenu = (bot, chatId) => {
-  bot.sendMessage(chatId, 'Please choose an option:', {
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: 'Look for matches', callback_data: 'look_for_matches' }],
-        [{ text: 'Check matches', callback_data: 'check_matches' }],
-      ],
-    },
-  });
-};
-
-// Match functionality
-export const lookForMatches = async (bot, chatId) => {
-  const user = await User.findOne({ telegramId: chatId });
-
-  if (!user) {
-    bot.sendMessage(chatId, 'Please complete your registration first.');
-  } else {
-    const targetGender = user.gender === 'Male' ? 'Female' : 'Male';
-
-    bot.sendMessage(chatId, `Looking for matches of gender: ${targetGender}...`);
-
-    const matches = await User.find({
-      gender: targetGender,
-      _id: { $ne: user._id }
-    });
-
-    if (matches.length > 0) {
-      for (const match of matches) {
-        const matchMessage = `Match found!\n\n` +
-          `Name: ${match.name}\n` +
-          `Bio: ${match.bio}\n` +
-          `Gender: ${match.gender}\n` +
-          `Batch of Year: ${match.batchYear}\n`;
-
-        await bot.sendMediaGroup(chatId, match.images.map((imageId) => ({
-          type: 'photo',
-          media: imageId,
-          caption:matchMessage,
-        })));
-
-        
-      }
-    } else {
-      bot.sendMessage(chatId, 'No matches found at the moment. Please check back later.');
-    }
-  }
-};
-
-export const checkMatches = async (bot, chatId) => {
-  bot.sendMessage(chatId, 'Fetching your matches...');
 };
