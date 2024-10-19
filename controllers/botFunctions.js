@@ -67,6 +67,15 @@ export const lookForMatches = async (bot, chatId) => {
 const showNextProfile = async (bot, chatId, matches, index) => {
   if (index < matches.length) {
     const match = matches[index];
+    
+    // Strict gender validation to prevent accidental same-gender display
+    const user = await User.findOne({ telegramId: chatId });
+    if (user.gender === match.gender) {
+      // Skip this profile if the gender is the same
+      showNextProfile(bot, chatId, matches, index + 1);
+      return;
+    }
+
     const matchMessage = `Match found!\n\n` +
       `Name: ${match.name}\n` +
       `Bio: ${match.bio}\n` +
@@ -93,6 +102,7 @@ const showNextProfile = async (bot, chatId, matches, index) => {
     bot.sendMessage(chatId, "No more profiles to show.");
   }
 };
+
 // Handle the like and dislike actions
 export const handleProfileActions = (bot) => {
   bot.on('callback_query', async (callbackQuery) => {
