@@ -11,6 +11,8 @@ export const startCommand = (bot) => {
     const existingUser = await User.findOne({ telegramId: chatId });
 
     if (existingUser) {
+      
+      // Send welcome back message and display menu
       bot.sendMessage(chatId, `Welcome back, ${existingUser.name}! You are already registered.`, {
         reply_markup: {
           inline_keyboard: [
@@ -19,6 +21,7 @@ export const startCommand = (bot) => {
         },
       });
     } else {
+      // For new users, proceed with registration
       bot.sendMessage(chatId, 'Welcome to the Dating Bot! What\'s your name?');
       userProfiles[chatId] = { step: 'name' };
     }
@@ -30,6 +33,7 @@ export const handleMessages = (bot) => {
   bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
 
+    // Proceed with registration based on the current step
     if (userProfiles[chatId] && userProfiles[chatId].step === 'name') {
       if (msg.text.startsWith('/')) {
         bot.sendMessage(chatId, 'Invalid name, please enter your real name.');
@@ -114,7 +118,7 @@ export const saveUserProfile = async (chatId, bot, callbackQuery = null) => {
     } else {
       bot.sendMessage(chatId, profileMessage);
     }
-
+    // Display menu after registration
     displayMenu(bot, chatId);
   } catch (error) {
     console.error('Error saving user:', error);
