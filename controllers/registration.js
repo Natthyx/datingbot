@@ -6,13 +6,19 @@ export let userProfiles = {};
 export const startCommand = (bot) => {
   bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
+    const username = msg.from.username; // Get the username
 
     // Check if the user already exists in the database
     const existingUser = await User.findOne({ telegramId: chatId });
 
+    if (!username) {
+      // If the user doesn't have a username, notify them to set one
+      bot.sendMessage(chatId, 'You need to set a Telegram username to register. Please set a username in your Telegram settings and then try again.');
+      return;
+    }
+
     if (existingUser) {
-      
-      // Send welcome back message and display menu
+      // Send welcome back message and display menu if already registered
       bot.sendMessage(chatId, `Welcome back, ${existingUser.name}! You are already registered.`, {
         reply_markup: {
           inline_keyboard: [
@@ -21,7 +27,7 @@ export const startCommand = (bot) => {
         },
       });
     } else {
-      // For new users, proceed with registration
+      // Proceed with registration for new users
       bot.sendMessage(chatId, 'Welcome to the Dating Bot! What\'s your name?');
       userProfiles[chatId] = { step: 'name' };
     }
@@ -85,9 +91,12 @@ export const handleMessages = (bot) => {
 // Save user profile and handle image uploads
 export const saveUserProfile = async (chatId, bot, callbackQuery = null) => {
   try {
-    const contact = callbackQuery 
-      ? callbackQuery.from.username || callbackQuery.from.id 
-      : chatId;  // Fallback to chatId if callbackQuery is undefined
+    const username = callbackQuery ? callbackQuery.from.username : (await bot.getChat(chatId)).username;
+
+    if (!username) {
+      // If there's no username (which should not happen due to earlier check), log an error
+      throw new Error("No username found during saving process.");
+    }
 
     const newUser = new User({
       telegramId: chatId,
@@ -96,7 +105,7 @@ export const saveUserProfile = async (chatId, bot, callbackQuery = null) => {
       bio: userProfiles[chatId].bio,
       batchYear: userProfiles[chatId].batchYear,
       images: userProfiles[chatId].images || [],
-      contact,
+      contact: username,  // Always save the username here
     });
 
     await newUser.save();
@@ -125,6 +134,7 @@ export const saveUserProfile = async (chatId, bot, callbackQuery = null) => {
     bot.sendMessage(chatId, 'Error saving your profile. Please try again.');
   }
 };
+
 
 // Update user messages (edit or send a new message)
 export const updateUserMessage = async (chatId, text, bot, inlineKeyboard = null) => {

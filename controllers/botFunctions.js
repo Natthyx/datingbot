@@ -77,37 +77,38 @@ const showNextProfile = async (bot, chatId, matches, index) => {
         return;
       }
   
-      const matchMessage = `Possible Match!\n\n` +
-        `Name: ${match.name}\n` +
-        `Bio: ${match.bio}\n` +
-        `Gender: ${match.gender}\n` +
-        `Batch of Year: ${match.batchYear}\n`;
+      // Group all photos together without any caption
+      const mediaGroup = match.images.map((imageId) => ({
+        type: 'photo',
+        media: imageId,
+      }));
   
-      // Send the first image with profile details and the like/dislike buttons
-      await bot.sendPhoto(chatId, match.images[0], {
-        caption: matchMessage,
+      // Send the grouped photos
+      await bot.sendMediaGroup(chatId, mediaGroup);
+  
+      // Construct the profile information with "Possible Match!" at the top
+      const matchMessage = `Possible Match!\n\n` +
+                           `Name: ${match.name}\n` +
+                           `Bio: ${match.bio}\n` +
+                           `Gender: ${match.gender}\n` +
+                           `Batch of Year: ${match.batchYear}`;
+  
+      // Send the profile information along with like/dislike buttons
+      await bot.sendMessage(chatId, matchMessage, {
         reply_markup: {
           inline_keyboard: [
             [
               { text: '❤️', callback_data: `like_${match.telegramId}_${index}` },   // Heart emoji for 'like'
-              { text: '👎', callback_data: `dislike_${match.telegramId}_${index}` } // Heartbreak emoji for 'dislike'
+              { text: '👎', callback_data: `dislike_${match.telegramId}_${index}` } // Thumbs down emoji for 'dislike'
             ]
           ],
         },
       });
   
-      // Send the remaining images without any caption
-      if (match.images.length > 1) {
-        const remainingImages = match.images.slice(1).map((imageId) => ({
-          type: 'photo',
-          media: imageId,
-        }));
-        await bot.sendMediaGroup(chatId, remainingImages);
-      }
     } else {
       bot.sendMessage(chatId, "No more profiles to show.");
     }
-  };
+};
   
   
   
@@ -192,8 +193,8 @@ const handleLike = async (bot, chatId, profileTelegramId) => {
     bot.sendMessage(likedUser.telegramId, `Do you like ${likingUser.name}'s profile?`, {
       reply_markup: {
         inline_keyboard: [
-          [{ text: 'Like back', callback_data: `likeback_${likingUser.telegramId}_${likedUser.telegramId}` }],
-          [{ text: 'Dislike', callback_data: `dislike_${likingUser.telegramId}_${likedUser.telegramId}` }]
+          [{ text: 'Like back ❤️', callback_data: `likeback_${likingUser.telegramId}_${likedUser.telegramId}` }],
+          [{ text: 'Dislike 👎', callback_data: `dislike_${likingUser.telegramId}_${likedUser.telegramId}` }]
         ],
       },
     });
