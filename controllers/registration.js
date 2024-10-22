@@ -85,10 +85,8 @@ export const handleMessages = (bot) => {
 // Save user profile and handle image uploads
 export const saveUserProfile = async (chatId, bot, callbackQuery = null) => {
   try {
-    const contact = callbackQuery 
-      ? callbackQuery.from.username || callbackQuery.from.id 
-      : chatId;  // Fallback to chatId if callbackQuery is undefined
-
+    const contact = callbackQuery ? callbackQuery.from.id : chatId;  // Fallback to chatId if callbackQuery is undefined
+    const username = callbackQuery && callbackQuery.from.username ? callbackQuery.from.username : null ;
     const newUser = new User({
       telegramId: chatId,
       name: userProfiles[chatId].name,
@@ -97,6 +95,7 @@ export const saveUserProfile = async (chatId, bot, callbackQuery = null) => {
       batchYear: userProfiles[chatId].batchYear,
       images: userProfiles[chatId].images || [],
       contact,
+      username,
     });
 
     await newUser.save();

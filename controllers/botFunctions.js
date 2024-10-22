@@ -5,10 +5,12 @@ import { saveUserProfile, userProfiles, updateUserMessage } from './registration
 export const displayMenu = (bot, chatId) => {
   bot.sendMessage(chatId, 'Please choose an option:', {
     reply_markup: {
-      inline_keyboard: [
+      keyboard: [
         [{ text: 'Look for matches', callback_data: 'look_for_matches' }],
         [{ text: 'Check matches', callback_data: 'check_matches' }],
       ],
+      resize_keyboard: true,
+      one_time_keyboard: false,
     },
   });
 };
@@ -40,6 +42,15 @@ export const handleCallbackQuery = (bot) => {
       userProfiles[chatId].step = 'finish';
       bot.sendMessage(chatId, 'You\'ve finished uploading images.');
       saveUserProfile(chatId, bot, callbackQuery);
+    }
+    if (data.startsWith('next_page_')) {
+      const page = parseInt(data.split('_')[2]);
+      await checkMatches(bot, chatId, page); // Fetch the next page of profiles
+    }
+
+    if (data.startsWith('prev_page_')) {
+      const page = parseInt(data.split('_')[2]);
+      await checkMatches(bot, chatId, page); // Fetch the previous page of profiles
     }
   });
 };
@@ -83,30 +94,25 @@ const showNextProfile = async (bot, chatId, matches, index) => {
         `Gender: ${match.gender}\n` +
         `Batch of Year: ${match.batchYear}\n`;
   
-      // Send the first image with profile details and the like/dislike buttons
-      await bot.sendPhoto(chatId, match.images[0], {
-        caption: matchMessage,
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: '❤️', callback_data: `like_${match.telegramId}_${index}` },   // Heart emoji for 'like'
-              { text: '👎', callback_data: `dislike_${match.telegramId}_${index}` } // Heartbreak emoji for 'dislike'
-            ]
-          ],
-        },
-      });
-  
-      // Send the remaining images without any caption
-      if (match.images.length > 1) {
-        const remainingImages = match.images.slice(1).map((imageId) => ({
+        // Send images with the profile details
+        await bot.sendMediaGroup(chatId, match.images.map((imageId, idx) => ({
           type: 'photo',
           media: imageId,
-        }));
-        await bot.sendMediaGroup(chatId, remainingImages);
+          caption: idx === 0 ? matchMessage : '', // Send profile details with the first image only
+        })));
+    
+        // Send like and dislike buttons for the current profile
+        bot.sendMessage(chatId, 'Do you like this profile?', {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '❤️', callback_data: `like_${match.telegramId}_${index}` }], // Use telegramId
+              [{ text: '👎', callback_data: `dislike_${match.telegramId}_${index}` }]
+            ],
+          },
+        });
+      } else {
+        bot.sendMessage(chatId, "No more profiles to show.");
       }
-    } else {
-      bot.sendMessage(chatId, "No more profiles to show.");
-    }
   };
   
   
@@ -141,23 +147,43 @@ export const handleProfileActions = (bot) => {
     }
 
     // Handle like back (when both users like each other)
-    if (action === 'likeback') {
-      const likedTelegramId = profileId;  // The profile that this user liked
+if (action === 'likeback') {
+  const likedTelegramId = profileId;  // The profile that this user liked
 
-      try {
-        const likingUser = await User.findOne({ telegramId: chatId });
-        const likedUser = await User.findOne({ telegramId: likedTelegramId });
+  try {
+    const likingUser = await User.findOne({ telegramId: chatId });
+    const likedUser = await User.findOne({ telegramId: likedTelegramId });
 
-        if (likingUser && likedUser) {
-          // Send usernames/contact to both users
-          bot.sendMessage(likingUser.telegramId, `It's a match! You can contact ${likedUser.name} at @${likedUser.contact}`);
-          bot.sendMessage(likedUser.telegramId, `It's a match! You can contact ${likingUser.name} at @${likingUser.contact}`);
-        }
-      } catch (err) {
-        console.error('Error in handleProfileActions (likeback):', err);
-        bot.sendMessage(chatId, "An error occurred while processing the like back. Please try again.");
+    if (likingUser && likedUser) {
+      // Update the liking user's likes array (store the likedUser's telegramId)
+      if (!likingUser.likes.includes(likedTelegramId)) {
+        likingUser.likes.push(likedTelegramId);
+        await likingUser.save(); // Save the updated liking user
       }
+
+      // Update the liked user's likedBy array (store the likingUser's telegramId)
+      if (!likedUser.likedBy.includes(chatId)) {
+        likedUser.likedBy.push(chatId);
+        await likedUser.save(); // Save the updated liked user
+      }
+
+      // Determine contact info (use username if available, fallback to telegramId link)
+      const likingUserContact = likingUser.username 
+        ? `@${likingUser.username}` 
+        : `<a href="tg://user?id=${likingUser.telegramId}">${likingUser.name}</a>`;
+      const likedUserContact = likedUser.username 
+        ? `@${likedUser.username}` 
+        : `<a href="tg://user?id=${likedUser.telegramId}">${likedUser.name}</a>`;
+
+      // Send contact info to both users
+      bot.sendMessage(likingUser.telegramId, `It's a match! You can contact ${likedUser.name} at ${likedUserContact}`,{ parse_mode: 'HTML' });
+      bot.sendMessage(likedUser.telegramId, `It's a match! You can contact ${likingUser.name} at ${likingUserContact}`,{ parse_mode: 'HTML' });
     }
+  } catch (err) {
+    console.error('Error in handleProfileActions (likeback):', err);
+    bot.sendMessage(chatId, "An error occurred while processing the like back. Please try again.");
+  }
+}
   });
 };
 
@@ -173,6 +199,19 @@ const handleLike = async (bot, chatId, profileTelegramId) => {
       bot.sendMessage(chatId, "The user you're trying to like doesn't exist.");
       return;
     }
+    // Update the liking user's likes array (store the likedUser's telegramId)
+    if (!likingUser.likes.includes(profileTelegramId)) {
+      likingUser.likes.push(profileTelegramId);
+    }
+
+    // Update the liked user's likedBy array (store the likingUser's telegramId)
+    if (!likedUser.likedBy.includes(chatId)) {
+      likedUser.likedBy.push(chatId);
+    }
+
+    // Save both users' data in the database
+    await likingUser.save();
+    await likedUser.save();
 
     // Notify the liked user with the profile details of the person who liked them
     const likingUserProfile = `Someone liked you!\n\n` +
@@ -192,8 +231,8 @@ const handleLike = async (bot, chatId, profileTelegramId) => {
     bot.sendMessage(likedUser.telegramId, `Do you like ${likingUser.name}'s profile?`, {
       reply_markup: {
         inline_keyboard: [
-          [{ text: 'Like back', callback_data: `likeback_${likingUser.telegramId}_${likedUser.telegramId}` }],
-          [{ text: 'Dislike', callback_data: `dislike_${likingUser.telegramId}_${likedUser.telegramId}` }]
+          [{ text: '❤️', callback_data: `likeback_${likingUser.telegramId}_${likedUser.telegramId}` }],
+          [{ text: '👎', callback_data: `dislike_${likingUser.telegramId}_${likedUser.telegramId}` }]
         ],
       },
     });
@@ -202,3 +241,81 @@ const handleLike = async (bot, chatId, profileTelegramId) => {
     bot.sendMessage(chatId, "An error occurred while processing your request. Please try again.");
   }
 };
+// Check Match List Functionality with Pagination
+export const checkMatches = async (bot, chatId, page = 0) => {
+  try {
+    // Find the user by Telegram ID
+    const user = await User.findOne({ telegramId: chatId });
+
+    if (!user) {
+      bot.sendMessage(chatId, 'Please complete your registration first.');
+      return;
+    }
+
+    if (user.likes.length === 0) {
+      bot.sendMessage(chatId, 'You have no matches yet.');
+      return;
+    }
+
+    // Find mutual matches (users who liked each other)
+    const mutualMatches = await User.find({
+      telegramId: { $in: user.likes },
+      likes: chatId, // Ensure they also liked this user
+    });
+
+    if (mutualMatches.length === 0) {
+      bot.sendMessage(chatId, 'No mutual matches found.');
+      return;
+    }
+
+    // Set up pagination - show 4 profiles at a time
+    const profilesPerPage = 4;
+    const totalPages = Math.ceil(mutualMatches.length / profilesPerPage);
+    const currentPageMatches = mutualMatches.slice(page * profilesPerPage, (page + 1) * profilesPerPage);
+
+    for (const match of currentPageMatches) {
+      const profileInfo = 
+        `Name: ${match.name}\n`+
+        `Bio: ${match.bio}\n`+
+        `Gender: ${match.gender}\n`+
+        `Batch Year: ${match.batchYear}\n`;
+
+      const contact = match.username
+        ? `@${match.username}`
+        : `<a href="tg://user?id=${match.telegramId}">${match.name}</a>`;
+
+      // Send the profile image with details (caption with first image)
+      await bot.sendMediaGroup(chatId, match.images.map((imageId, idx) => ({
+        type: 'photo',
+        media: imageId,
+        caption: idx === 0 ? `${profileInfo}\n\nYou can contact them at ${contact}` : '',
+        parse_mode: 'HTML',
+      })));
+    }
+
+    // Set up next/previous buttons if necessary
+    const inlineKeyboard = [];
+
+    if (page > 0) {
+      inlineKeyboard.push([{ text: 'Previous', callback_data: `prev_page_${page - 1}` }]);
+    }
+
+    if (page < totalPages - 1) {
+      inlineKeyboard.push([{ text: 'Next', callback_data: `next_page_${page + 1}` }]);
+    }
+
+    // Send navigation buttons
+    if (inlineKeyboard.length > 0) {
+      bot.sendMessage(chatId, 'Navigate profiles:', {
+        reply_markup: {
+          inline_keyboard: inlineKeyboard,
+        },
+      });
+    }
+
+  } catch (err) {
+    console.error('Error fetching matches:', err);
+    bot.sendMessage(chatId, 'An error occurred while fetching your matches.');
+  }
+};
+
