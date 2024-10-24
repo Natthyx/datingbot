@@ -86,7 +86,7 @@ export const handleMessages = (bot) => {
 export const saveUserProfile = async (chatId, bot, callbackQuery = null) => {
   try {
     const contact = callbackQuery ? callbackQuery.from.id : chatId;  // Fallback to chatId if callbackQuery is undefined
-    const username = callbackQuery && callbackQuery.from.username ? callbackQuery.from.username : null ;
+    const username = callbackQuery ? callbackQuery.from.username : null ;
     const newUser = new User({
       telegramId: chatId,
       name: userProfiles[chatId].name,
@@ -121,7 +121,7 @@ export const saveUserProfile = async (chatId, bot, callbackQuery = null) => {
     displayMenu(bot, chatId);
   } catch (error) {
     console.error('Error saving user:', error);
-    bot.sendMessage(chatId, 'Error saving your profile. Please try again.');
+    bot.sendMessage(chatId, 'Error saving your profile. Please try again. Press /start');
   }
 };
 

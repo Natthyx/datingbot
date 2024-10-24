@@ -114,9 +114,7 @@ const showNextProfile = async (bot, chatId, matches, index) => {
         bot.sendMessage(chatId, "No more profiles to show.");
       }
   };
-  
-  
-  
+   
 // Handle the like and dislike actions
 export const handleProfileActions = (bot) => {
   bot.on('callback_query', async (callbackQuery) => {
@@ -228,7 +226,7 @@ const handleLike = async (bot, chatId, profileTelegramId) => {
     })));
 
     // Ask the liked user if they want to like the person back
-    bot.sendMessage(likedUser.telegramId, `Do you like ${likingUser.name}'s profile?`, {
+    bot.sendMessage(likedUser.telegramId, `Do you want to like back ${likingUser.name}'s profile?`, {
       reply_markup: {
         inline_keyboard: [
           [{ text: '❤️', callback_data: `likeback_${likingUser.telegramId}_${likedUser.telegramId}` }],
@@ -238,9 +236,10 @@ const handleLike = async (bot, chatId, profileTelegramId) => {
     });
   } catch (err) {
     console.error('Error in handleLike:', err);
-    bot.sendMessage(chatId, "An error occurred while processing your request. Please try again.");
+    bot.sendMessage(chatId, "An error occurred while processing your request. Please try again");
   }
 };
+
 // Check Match List Functionality with Pagination
 export const checkMatches = async (bot, chatId, page = 0) => {
   try {
@@ -318,4 +317,3 @@ export const checkMatches = async (bot, chatId, page = 0) => {
     bot.sendMessage(chatId, 'An error occurred while fetching your matches.');
   }
 };
-
