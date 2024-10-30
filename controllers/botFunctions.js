@@ -8,6 +8,7 @@ export const displayMenu = (bot, chatId) => {
       keyboard: [
         [{ text: 'Look for matches', callback_data: 'look_for_matches' }],
         [{ text: 'Check matches', callback_data: 'check_matches' }],
+        [{ text: 'Edit Profile', callback_data: 'edit_profile' }], // Added Edit Profile
       ],
       resize_keyboard: true,
       one_time_keyboard: false,
@@ -62,12 +63,14 @@ export const lookForMatches = async (bot, chatId) => {
     bot.sendMessage(chatId, 'Please complete your registration first.');
   } else {
     const targetGender = user.gender === 'Male' ? 'Female' : 'Male';
-    const matches = await User.find({
+    let matches = await User.find({
       gender: targetGender,
       telegramId: { $ne: user.telegramId }, // Use telegramId, not _id
     });
 
     if (matches.length > 0) {
+      // Randomize the matches array
+      matches = shuffleArray(matches);
       showNextProfile(bot, chatId, matches, 0); // Start showing profiles one by one
     } else {
       bot.sendMessage(chatId, 'No matches found at the moment.');
@@ -111,10 +114,20 @@ const showNextProfile = async (bot, chatId, matches, index) => {
           },
         });
       } else {
-        bot.sendMessage(chatId, "No more profiles to show.");
+        // bot.sendMessage(chatId, "No more profiles to show.");
+        showNextProfile(bot, chatId, matches, 0);
       }
   };
-   
+  // Helper function to shuffle the array (randomize)
+const shuffleArray = (array) => {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+};
+  
+  
 // Handle the like and dislike actions
 export const handleProfileActions = (bot) => {
   bot.on('callback_query', async (callbackQuery) => {
@@ -226,20 +239,19 @@ const handleLike = async (bot, chatId, profileTelegramId) => {
     })));
 
     // Ask the liked user if they want to like the person back
-    bot.sendMessage(likedUser.telegramId, `Do you want to like back ${likingUser.name}'s profile?`, {
+    bot.sendMessage(likedUser.telegramId, `Do you like ${likingUser.name}'s profile?`, {
       reply_markup: {
         inline_keyboard: [
-          [{ text: '❤️', callback_data: `likeback_${likingUser.telegramId}_${likedUser.telegramId}` }],
+          [{ text: '❤️Like Back', callback_data: `likeback_${likingUser.telegramId}_${likedUser.telegramId}` }],
           [{ text: '👎', callback_data: `dislike_${likingUser.telegramId}_${likedUser.telegramId}` }]
         ],
       },
     });
   } catch (err) {
     console.error('Error in handleLike:', err);
-    bot.sendMessage(chatId, "An error occurred while processing your request. Please try again");
+    bot.sendMessage(chatId, "An error occurred while processing your request. Please try again.");
   }
 };
-
 // Check Match List Functionality with Pagination
 export const checkMatches = async (bot, chatId, page = 0) => {
   try {
@@ -317,3 +329,4 @@ export const checkMatches = async (bot, chatId, page = 0) => {
     bot.sendMessage(chatId, 'An error occurred while fetching your matches.');
   }
 };
+

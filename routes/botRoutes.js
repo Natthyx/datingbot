@@ -1,5 +1,5 @@
 import express from 'express';
-import { startCommand, handleMessages } from '../controllers/registration.js';  
+import { startCommand, handleMessages, handleEditProfile,handleEditProfileCallbacks, handleEditMessages } from '../controllers/registration.js';  
 import { handleCallbackQuery, lookForMatches, handleProfileActions, checkMatches } from '../controllers/botFunctions.js';  
 
 const router = express.Router();
@@ -9,22 +9,35 @@ export default (bot) => {
     handleMessages(bot);        // Handle text messages for registration
     handleCallbackQuery(bot);   // Handle general bot-related callback queries
     handleProfileActions(bot);  // Handle like/dislike actions
+    handleEditProfile(bot);     // Handle profile edit requests
+    handleEditProfileCallbacks(bot); // Handle callback queries for edit profile
+    handleEditMessages(bot);
+    
 
-    // Handle callback queries for match actions like 'look_for_matches'
+
+    // Handle menu actions based on user message input
     bot.on('message', async (msg) => {
         const chatId = msg.chat.id;
-        
 
         if (msg.text === 'Look for matches') {
             lookForMatches(bot, chatId);  // Initiate the match-finding process
         }
         // Check matches option
-    if (msg.text === 'Check matches') {
-        checkMatches(bot, chatId, 0);  // Initiate the check match list process
-      }
+        else if (msg.text === 'Check matches') {
+            checkMatches(bot, chatId, 0);  // Initiate the check match list process
+        }
+        else if (msg.text === 'Edit Profile') {
+            bot.sendMessage(chatId, 'What would you like to edit?', {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: 'Name', callback_data: 'edit_name' }],
+                        [{ text: 'Bio', callback_data: 'edit_bio' }],
+                        [{ text: 'Cancel', callback_data: 'cancel_edit' }],
+                    ],
+                },
+            });
+        }
     });
-
-    
 
     return router;
 };

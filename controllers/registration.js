@@ -121,7 +121,7 @@ export const saveUserProfile = async (chatId, bot, callbackQuery = null) => {
     displayMenu(bot, chatId);
   } catch (error) {
     console.error('Error saving user:', error);
-    bot.sendMessage(chatId, 'Error saving your profile. Please try again. Press /start');
+    bot.sendMessage(chatId, 'Error saving your profile. Please try again.');
   }
 };
 
@@ -149,4 +149,65 @@ export const updateUserMessage = async (chatId, text, bot, inlineKeyboard = null
       userProfiles[chatId].messageId = sentMessage.message_id;
     });
   }
+};
+// Handle edit profile
+export const handleEditProfile = (bot) => {
+  bot.on('message', async (msg) => {
+      const chatId = msg.chat.id;
+      if (msg.text === 'Edit Profile') {
+          const user = await User.findOne({ telegramId: chatId });
+          if (!user) bot.sendMessage(chatId, 'You are not registered. Please register first.');
+      }
+  });
+};
+
+export const handleEditMessages = (bot) => {
+  bot.on('message', async (msg) => {
+      const chatId = msg.chat.id;
+      const user = await User.findOne({ telegramId: chatId });
+
+      if (!user) {
+          bot.sendMessage(chatId, 'You are not registered. Please register first.');
+          return;
+      }
+
+      if (userProfiles[chatId]?.step === 'edit_name') {
+          // Update name
+          const newName = msg.text;
+          await User.findOneAndUpdate({ telegramId: chatId }, { name: newName });
+          bot.sendMessage(chatId, `Name updated to: ${newName}`);
+          userProfiles[chatId] = {}; // Reset step
+      } else if (userProfiles[chatId]?.step === 'edit_bio') {
+          // Update bio
+          const newBio = msg.text;
+          await User.findOneAndUpdate({ telegramId: chatId }, { bio: newBio });
+          bot.sendMessage(chatId, `Bio updated to: ${newBio}`);
+          userProfiles[chatId] = {}; // Reset step
+      } 
+  });
+};
+
+// Modify the `handleEditProfileCallbacks` function to trigger correct steps
+export const handleEditProfileCallbacks = (bot) => {
+  bot.on('callback_query', async (callbackQuery) => {
+      const chatId = callbackQuery.message.chat.id;
+      const data = callbackQuery.data;
+
+      const user = await User.findOne({ telegramId: chatId });
+      if (!user) {
+          bot.sendMessage(chatId, 'You are not registered. Please register first.');
+          return;
+      }
+
+      if (data === 'edit_name') {
+          userProfiles[chatId] = { step: 'edit_name' };
+          bot.sendMessage(chatId, 'Please enter your new name:');
+      }  else if (data === 'edit_bio') {
+          userProfiles[chatId] = { step: 'edit_bio' };
+          bot.sendMessage(chatId, 'Please enter your new bio:');
+      } else if (data === 'cancel_edit') {
+          bot.sendMessage(chatId, 'Edit cancelled.');
+          userProfiles[chatId] = {}; // Reset step
+      }
+  });
 };
