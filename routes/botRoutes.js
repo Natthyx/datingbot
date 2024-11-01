@@ -1,6 +1,6 @@
 import express from 'express';
 import { startCommand, handleMessages, handleEditProfile,handleEditProfileCallbacks, handleEditMessages } from '../controllers/registration.js';  
-import { handleCallbackQuery, lookForMatches, handleProfileActions, checkMatches } from '../controllers/botFunctions.js';  
+import { handleCallbackQuery, lookForMatches, handleProfileActions, checkMatches, myProfile } from '../controllers/botFunctions.js';  
 
 const router = express.Router();
 
@@ -19,7 +19,10 @@ export default (bot) => {
     bot.on('message', async (msg) => {
         const chatId = msg.chat.id;
 
-        if (msg.text === 'Look for matches') {
+        if (msg.text === 'My Profile') {
+            myProfile(bot, chatId);  // Initiate the match-finding process
+        }
+        else if (msg.text === 'Look for matches') {
             lookForMatches(bot, chatId);  // Initiate the match-finding process
         }
         // Check matches option

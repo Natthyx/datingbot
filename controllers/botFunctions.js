@@ -9,6 +9,7 @@ export const displayMenu = (bot, chatId) => {
         [{ text: 'Look for matches', callback_data: 'look_for_matches' }],
         [{ text: 'Check matches', callback_data: 'check_matches' }],
         [{ text: 'Edit Profile', callback_data: 'edit_profile' }], // Added Edit Profile
+        [{ text: 'My Profile', callback_data: 'my_profile' }], // Added Show Profile
       ],
       resize_keyboard: true,
       one_time_keyboard: false,
@@ -55,6 +56,31 @@ export const handleCallbackQuery = (bot) => {
     }
   });
 };
+
+// Function to display the user's own profile with photo and info as caption
+export const myProfile = async (bot, chatId) => {
+    // Fetch the user's profile from the database
+    const user = await User.findOne({ telegramId: chatId });
+
+    // Send profile summary
+    let profileMessage = `Your profile\n\n` +
+      `Name: ${user.name}\n` +
+      `Gender: ${user.gender}\n` +
+      `Bio: ${user.bio}\n` +
+      `Batch of Year: ${user.batchYear}\n`;
+
+    // Send images with captioned profile data
+    if (user.images.length > 0) {
+      await bot.sendMediaGroup(chatId, user.images.map((imageId, index) => ({
+        type: 'photo',
+        media: imageId,
+        caption: index === 0 ? profileMessage : '', // Send profile details with the first image only
+      })));
+    } else {
+      bot.sendMessage(chatId, profileMessage);
+    }
+};
+
 // Function to find matches
 export const lookForMatches = async (bot, chatId) => {
   const user = await User.findOne({ telegramId: chatId });
@@ -65,60 +91,78 @@ export const lookForMatches = async (bot, chatId) => {
     const targetGender = user.gender === 'Male' ? 'Female' : 'Male';
     let matches = await User.find({
       gender: targetGender,
-      telegramId: { $ne: user.telegramId }, // Use telegramId, not _id
+      telegramId: { $ne: user.telegramId }, // Exclude the user themselves
     });
 
     if (matches.length > 0) {
-      // Randomize the matches array
-      matches = shuffleArray(matches);
-      showNextProfile(bot, chatId, matches, 0); // Start showing profiles one by one
+      displayRandomizedProfiles(bot, chatId, matches);
     } else {
       bot.sendMessage(chatId, 'No matches found at the moment.');
     }
   }
 };
 
+// Function to display profiles in a new randomized order each loop
+const displayRandomizedProfiles = (bot, chatId, matches) => {
+  const shuffledMatches = shuffleArray([...matches]); // Shuffle matches each loop
+  showNextProfile(bot, chatId, shuffledMatches, 0); // Start at index 0
+};
+
 // Recursive function to display profiles one by one
 const showNextProfile = async (bot, chatId, matches, index) => {
-    if (index < matches.length) {
-      const match = matches[index];
-  
-      // Strict gender validation to prevent accidental same-gender display
-      const user = await User.findOne({ telegramId: chatId });
-      if (user.gender === match.gender) {
-        // Skip this profile if the gender is the same
-        showNextProfile(bot, chatId, matches, index + 1);
-        return;
-      }
-  
-      const matchMessage = `Possible Match!\n\n` +
-        `Name: ${match.name}\n` +
-        `Bio: ${match.bio}\n` +
-        `Gender: ${match.gender}\n` +
-        `Batch of Year: ${match.batchYear}\n`;
-  
-        // Send images with the profile details
-        await bot.sendMediaGroup(chatId, match.images.map((imageId, idx) => ({
-          type: 'photo',
-          media: imageId,
-          caption: idx === 0 ? matchMessage : '', // Send profile details with the first image only
-        })));
-    
-        // Send like and dislike buttons for the current profile
-        bot.sendMessage(chatId, 'Do you like this profile?', {
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: '❤️', callback_data: `like_${match.telegramId}_${index}` }], // Use telegramId
-              [{ text: '👎', callback_data: `dislike_${match.telegramId}_${index}` }]
-            ],
-          },
-        });
-      } else {
-        // bot.sendMessage(chatId, "No more profiles to show.");
-        showNextProfile(bot, chatId, matches, 0);
-      }
-  };
-  // Helper function to shuffle the array (randomize)
+  if (index >= matches.length) {
+    displayRandomizedProfiles(bot, chatId, matches); // Start a new loop
+    return;
+  }
+
+  const match = matches[index];
+
+  // Profile details message
+  const matchMessage = 
+    `Possible Match!\n\n` +
+    `Name: ${match.name}\n` +
+    `Bio: ${match.bio}\n` +
+    `Gender: ${match.gender}\n` +
+    `Batch of Year: ${match.batchYear}\n`;
+
+  // Send images with the profile details
+  await bot.sendMediaGroup(chatId, match.images.map((imageId, idx) => ({
+    type: 'photo',
+    media: imageId,
+    caption: idx === 0 ? matchMessage : '', // Only include profile info in the first image caption
+  })));
+
+  // Send like and next buttons
+  bot.sendMessage(chatId, 'Do you like this profile?', {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: '❤️', callback_data: `like_${match.telegramId}_${index}` }],
+        [{ text: '👎', callback_data: `next_${index}` }]
+      ],
+    },
+  });
+
+  // Remove previous listener to avoid duplicate callback handling
+  bot.removeAllListeners('callback_query');
+
+  // Listen for the callback only once
+  bot.once('callback_query', async (query) => {
+    if (query.data === `next_${index}`) {
+      // Display the next profile
+      showNextProfile(bot, chatId, matches, index + 1);
+    } else if (query.data.startsWith('like_')) {
+      // Handle the like action here if needed
+      bot.sendMessage(chatId, "You liked this profile!");
+      // You can also proceed to the next profile if desired
+      showNextProfile(bot, chatId, matches, index + 1);
+    }
+
+    // Answer the callback to remove the loading state
+    bot.answerCallbackQuery(query.id);
+  });
+};
+
+// Helper function to shuffle an array (randomize)
 const shuffleArray = (array) => {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -126,7 +170,6 @@ const shuffleArray = (array) => {
   }
   return array;
 };
-  
   
 // Handle the like and dislike actions
 export const handleProfileActions = (bot) => {
@@ -242,8 +285,8 @@ const handleLike = async (bot, chatId, profileTelegramId) => {
     bot.sendMessage(likedUser.telegramId, `Do you like ${likingUser.name}'s profile?`, {
       reply_markup: {
         inline_keyboard: [
-          [{ text: '❤️Like Back', callback_data: `likeback_${likingUser.telegramId}_${likedUser.telegramId}` }],
-          [{ text: '👎', callback_data: `dislike_${likingUser.telegramId}_${likedUser.telegramId}` }]
+          [{ text: '❤️ Like Back', callback_data: `likeback_${likingUser.telegramId}_${likedUser.telegramId}` }],
+          [{ text: '👎 Dislike', callback_data: `dislike_${likingUser.telegramId}_${likedUser.telegramId}` }]
         ],
       },
     });
@@ -252,6 +295,7 @@ const handleLike = async (bot, chatId, profileTelegramId) => {
     bot.sendMessage(chatId, "An error occurred while processing your request. Please try again.");
   }
 };
+
 // Check Match List Functionality with Pagination
 export const checkMatches = async (bot, chatId, page = 0) => {
   try {
@@ -329,4 +373,3 @@ export const checkMatches = async (bot, chatId, page = 0) => {
     bot.sendMessage(chatId, 'An error occurred while fetching your matches.');
   }
 };
-
