@@ -141,25 +141,6 @@ const showNextProfile = async (bot, chatId, matches, index) => {
       ],
     },
   });
-
-  // Remove previous listener to avoid duplicate callback handling
-  bot.removeAllListeners('callback_query');
-
-  // Listen for the callback only once
-  bot.once('callback_query', async (query) => {
-    if (query.data === `next_${index}`) {
-      // Display the next profile
-      showNextProfile(bot, chatId, matches, index + 1);
-    } else if (query.data.startsWith('like_')) {
-      // Handle the like action here if needed
-      bot.sendMessage(chatId, "You liked this profile!");
-      // You can also proceed to the next profile if desired
-      showNextProfile(bot, chatId, matches, index + 1);
-    }
-
-    // Answer the callback to remove the loading state
-    bot.answerCallbackQuery(query.id);
-  });
 };
 
 // Helper function to shuffle an array (randomize)
@@ -183,11 +164,12 @@ export const handleProfileActions = (bot) => {
     // Handle like
     if (action === 'like') {
       await handleLike(bot, chatId, profileId);
-      
+      bot.sendMessage(chatId, "You liked this profile.");
       const nextIndex = parseInt(index) + 1;
       const matches = await User.find({
         telegramId: { $ne: chatId },  // Ensure not the same user
       });
+      
       showNextProfile(bot, chatId, matches, nextIndex); // Show the next profile
     }
 
@@ -285,8 +267,8 @@ const handleLike = async (bot, chatId, profileTelegramId) => {
     bot.sendMessage(likedUser.telegramId, `Do you like ${likingUser.name}'s profile?`, {
       reply_markup: {
         inline_keyboard: [
-          [{ text: '❤️ Like Back', callback_data: `likeback_${likingUser.telegramId}_${likedUser.telegramId}` }],
-          [{ text: '👎 Dislike', callback_data: `dislike_${likingUser.telegramId}_${likedUser.telegramId}` }]
+          [{ text: '❤️Like Back', callback_data: `likeback_${likingUser.telegramId}_${likedUser.telegramId}` }],
+          [{ text: '👎', callback_data: `dislike_${likingUser.telegramId}_${likedUser.telegramId}` }]
         ],
       },
     });
@@ -295,7 +277,6 @@ const handleLike = async (bot, chatId, profileTelegramId) => {
     bot.sendMessage(chatId, "An error occurred while processing your request. Please try again.");
   }
 };
-
 // Check Match List Functionality with Pagination
 export const checkMatches = async (bot, chatId, page = 0) => {
   try {

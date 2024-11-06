@@ -37,7 +37,7 @@ export const handleMessages = (bot) => {
     }
 
     // Registration steps based on the current state
-    if (userProfiles[chatId]?.step === 'name') {
+    if (userProfiles[chatId] && userProfiles[chatId].step === 'name') {
       if (typeof msg.text !== 'string' || !msg.text.trim()) {
         bot.sendMessage(chatId, 'Invalid name. Please enter a valid name.');
         return;
@@ -49,7 +49,7 @@ export const handleMessages = (bot) => {
         [{ text: 'Female', callback_data: 'Female' }],
       ]);
     } 
-    else if (userProfiles[chatId]?.step === 'bio') {
+    else if (userProfiles[chatId] && userProfiles[chatId].step === 'bio') {
       if (typeof msg.text !== 'string' || !msg.text.trim()) {
         bot.sendMessage(chatId, 'Invalid bio. Please enter a short bio.');
         return;
@@ -58,7 +58,7 @@ export const handleMessages = (bot) => {
       userProfiles[chatId].step = 'images';
       bot.sendMessage(chatId, 'Please upload up to 3 images (you can send them together or one by one).');
     } 
-    else if (userProfiles[chatId]?.step === 'images') {
+    else if (userProfiles[chatId] && userProfiles[chatId].step=== 'images') {
       if (!msg.photo) {
         bot.sendMessage(chatId, 'Invalid input. Please send an image.');
         return;
@@ -137,7 +137,7 @@ export const updateUserMessage = async (chatId, text, bot, inlineKeyboard = null
     ? { reply_markup: { inline_keyboard: inlineKeyboard } }
     : {};
 
-  if (userProfiles[chatId]?.messageId) {
+  if (userProfiles[chatId] && userProfiles[chatId].messageId) {
     try {
       await bot.editMessageText(text, {
         chat_id: chatId,
@@ -171,11 +171,16 @@ export const handleEditProfile = (bot) => {
 export const handleEditMessages = (bot) => {
   bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
-    const user = await User.findOne({ telegramId: chatId });
+    const menuCommands = ['Look for matches', 'Check matches', 'Edit Profile', 'My Profile'];
+    //const user = await User.findOne({ telegramId: chatId });
 
     if (userProfiles[chatId]?.step === 'edit_name') {
       const newName = msg.text;
       if (!newName || newName.startsWith('/')) {
+        bot.sendMessage(chatId, 'Invalid name. Please enter your new name without commands.');
+        return;
+      }
+      if (!newName || menuCommands.includes(newName)) {
         bot.sendMessage(chatId, 'Invalid name. Please enter your new name without commands.');
         return;
       }
@@ -186,6 +191,10 @@ export const handleEditMessages = (bot) => {
       const newBio = msg.text;
       if (!newBio || newBio.startsWith('/')) {
         bot.sendMessage(chatId, 'Invalid bio. Please enter a valid bio.');
+        return;
+      }
+      if (!newBio || menuCommands.includes(newBio)) {
+        bot.sendMessage(chatId, 'Invalid name. Please enter your new name without commands.');
         return;
       }
       await User.findOneAndUpdate({ telegramId: chatId }, { bio: newBio });
@@ -201,7 +210,7 @@ export const handleEditProfileCallbacks = (bot) => {
     const chatId = callbackQuery.message.chat.id;
     const data = callbackQuery.data;
 
-    const user = await User.findOne({ telegramId: chatId });
+    //const user = await User.findOne({ telegramId: chatId });
 
     if (data === 'edit_name') {
       userProfiles[chatId] = { step: 'edit_name' };

@@ -1,5 +1,5 @@
 import express from 'express';
-import { startCommand, handleMessages, handleEditProfile,handleEditProfileCallbacks, handleEditMessages } from '../controllers/registration.js';  
+import { startCommand, handleMessages,handleEditProfileCallbacks, handleEditProfile,handleEditMessages } from '../controllers/registration.js';  
 import { handleCallbackQuery, lookForMatches, handleProfileActions, checkMatches, myProfile } from '../controllers/botFunctions.js';  
 
 const router = express.Router();
