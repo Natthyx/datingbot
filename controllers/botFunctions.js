@@ -140,7 +140,6 @@ const showNextProfile = async (bot, chatId, matches, index) => {
           },
         });
       } else {
-        matches = shuffleArray(matches);
         showNextProfile(bot, chatId, matches, 0);
       }
   };
