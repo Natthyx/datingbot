@@ -137,7 +137,7 @@ const showNextProfile = async (bot, chatId, matches, index) => {
     reply_markup: {
       inline_keyboard: [
         [{ text: '❤️', callback_data: `like_${match.telegramId}_${index}` }],
-        [{ text: '👎', callback_data: `next_${index}` }]
+        [{ text: '👎', callback_data: `dislike_${match.telegramId}_${index}` }]
       ],
     },
   });
