@@ -187,6 +187,7 @@ export const handleEditMessages = (bot) => {
       await User.findOneAndUpdate({ telegramId: chatId }, { name: newName });
       bot.sendMessage(chatId, `Name updated to: ${newName}`);
       userProfiles[chatId] = {};
+      displayMenu(bot, chatId);
     } else if (userProfiles[chatId]?.step === 'edit_bio') {
       const newBio = msg.text;
       if (!newBio || newBio.startsWith('/')) {
@@ -200,6 +201,7 @@ export const handleEditMessages = (bot) => {
       await User.findOneAndUpdate({ telegramId: chatId }, { bio: newBio });
       bot.sendMessage(chatId, `Bio updated to: ${newBio}`);
       userProfiles[chatId] = {};
+      displayMenu(bot, chatId);
     }
   });
 };
