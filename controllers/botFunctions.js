@@ -82,22 +82,29 @@ export const myProfile = async (bot, chatId) => {
 };
 
 // Function to find matches
-export const lookForMatches = async (bot, chatId) => {
-  const user = await User.findOne({ telegramId: chatId });
+export const lookForMatches = async (bot, chatId, batchIndex = 0, matchesCache = []) => {
+  const user = await User.findOne({ telegramId: chatId }).select("gender telegramId");
 
   if (!user) {
     bot.sendMessage(chatId, 'Please complete your registration first.');
   } else {
     const targetGender = user.gender === 'Male' ? 'Female' : 'Male';
-    let matches = await User.find({
+    // If the cache is empty, fetch a new batch
+  if (matchesCache.length === 0) {
+    matchesCache = await User.find({
       gender: targetGender,
-      telegramId: { $ne: user.telegramId }, // Use telegramId, not _id
-    });
+      telegramId: { $ne: chatId },
+    })
+      .select("name bio gender batchYear images telegramId")
+      .skip(batchIndex * 10) // Fetch the next batch after the current one is exhausted
+      .limit(10)
+      .exec();
+  }
 
-    if (matches.length > 0) {
+    if (matchesCache.length > 0) {
       // Randomize the matches array
-      matches = shuffleArray(matches);
-      showNextProfile(bot, chatId, matches, 0); // Start showing profiles one by one
+      matchesCache = shuffleArray(matchesCache);
+      showNextProfile(bot, chatId, matchesCache, 0, batchIndex); // Start showing profiles one by one
     } else {
       bot.sendMessage(chatId, 'No matches found at the moment.');
     }
@@ -105,15 +112,15 @@ export const lookForMatches = async (bot, chatId) => {
 };
 
 // Recursive function to display profiles one by one
-const showNextProfile = async (bot, chatId, matches, index) => {
-    if (index < matches.length) {
-      const match = matches[index];
+const showNextProfile = async (bot, chatId, matchesCache, index, batchIndex) => {
+    if (index < matchesCache.length) {
+      const match = matchesCache[index];
   
       // Strict gender validation to prevent accidental same-gender display
-      const user = await User.findOne({ telegramId: chatId });
+      const user = await User.findOne({ telegramId: chatId }).select('gender');
       if (user.gender === match.gender) {
         // Skip this profile if the gender is the same
-        showNextProfile(bot, chatId, matches, index + 1);
+        showNextProfile(bot, chatId, matchesCache, index + 1, batchIndex+1);
         return;
       }
   
@@ -131,7 +138,7 @@ const showNextProfile = async (bot, chatId, matches, index) => {
         })));
     
         // Send like and dislike buttons for the current profile
-        bot.sendMessage(chatId, 'Do you like this profile?', {
+        bot.sendMessage(chatId, 'Like this profile?', {
           reply_markup: {
             inline_keyboard: [
               [{ text: '❤️', callback_data: `like_${match.telegramId}_${index}` }], // Use telegramId
@@ -140,7 +147,7 @@ const showNextProfile = async (bot, chatId, matches, index) => {
           },
         });
       } else {
-        showNextProfile(bot, chatId, matches, 0);
+        showNextProfile(bot, chatId, matchesCache, 0, 0);
       }
   };
   // Helper function to shuffle the array (randomize)

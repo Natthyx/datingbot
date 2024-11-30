@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const mongoUrl = 'mongodb+srv://admin:CxPV38YWji5FIviA@aastucupid.6kb4s.mongodb.net/?retryWrites=true&w=majority&appName=aastucupid';
+const mongoUrl = process.env.MONGO_URL ;
 
 const connectDB = async () => {
   try {

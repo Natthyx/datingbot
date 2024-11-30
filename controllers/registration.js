@@ -9,10 +9,10 @@ export const startCommand = (bot) => {
     const chatId = msg.chat.id;
 
     // Check if the user already exists in the database
-    const existingUser = await User.findOne({ telegramId: chatId });
+    const existingUser = await User.findOne({ telegramId: chatId }).select('name');
 
     if (existingUser) {
-      bot.sendMessage(chatId, `Welcome back, ${existingUser.name}! You are already registered.`, {
+      bot.sendMessage(chatId, `Welcome back, ${existingUser.name}!`, {
         reply_markup: {
           inline_keyboard: [
             [{ text: 'Menu', callback_data: 'show_menu' }],
@@ -20,7 +20,7 @@ export const startCommand = (bot) => {
         },
       });
     } else {
-      bot.sendMessage(chatId, 'Welcome to the Dating Bot! What\'s your name?');
+      bot.sendMessage(chatId, 'Welcome to the AASTU Cupid! What\'s your name?');
       userProfiles[chatId] = { step: 'name' };
     }
   });
@@ -162,7 +162,7 @@ export const handleEditProfile = (bot) => {
   bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     if (msg.text === 'Edit Profile') {
-      const user = await User.findOne({ telegramId: chatId });
+      const user = await User.findOne({ telegramId: chatId }).select('name');
       if (!user) bot.sendMessage(chatId, 'You are not registered. Please register first.');
     }
   });

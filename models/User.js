@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 const userSchema = new mongoose.Schema({
-  telegramId: { type: String, required: true, unique: true },
+  telegramId: { type: String, required: true, unique: true, index:true },
   name: { type: String, required: true },
   gender: { type: String, required: true },
   bio: { type: String, required: true },
@@ -9,8 +9,8 @@ const userSchema = new mongoose.Schema({
   images: [{ type: String }], // Array of image URLs
   username: { type: String },
   contact: { type: String, required: true }, // Contact info from Telegram
-  likes: [{ type: String }], // Store the IDs of liked profiles
-  likedBy: [{ type: String }], // Store the IDs of users who liked this profile
+  likes: {type: [String], index:true}, // Store the IDs of liked profiles
+  likedBy: {type: [String], index:true}, // Store the IDs of users who liked this profile
 });
 
 export default mongoose.model('User', userSchema);
